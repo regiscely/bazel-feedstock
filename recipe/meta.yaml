@@ -9,6 +9,7 @@ source:
   sha256: {{ sha256sum }}
   patches:
     - 0006-Add-support-for-ppc64le-embedded-jdk.patch 
+    - pkix_network.patch
 
 build:
   number: 2
