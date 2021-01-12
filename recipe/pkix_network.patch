@@ -1,0 +1,66 @@
+diff --git a/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnector.java b/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnector.java
+index a8720dc..9221d90 100644
+--- a/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnector.java
++++ b/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnector.java
+@@ -55,8 +55,8 @@ class HttpConnector {
+   private static final int MAX_REDIRECTS = 40;
+   private static final int MIN_RETRY_DELAY_MS = 100;
+   private static final int MIN_CONNECT_TIMEOUT_MS = 1000;
+-  private static final int MAX_CONNECT_TIMEOUT_MS = 10000;
+-  private static final int READ_TIMEOUT_MS = 20000;
++  private static final int MAX_CONNECT_TIMEOUT_MS = 20000;
++  private static final int READ_TIMEOUT_MS = 600000;
+   private static final ImmutableSet<String> COMPRESSED_EXTENSIONS =
+       ImmutableSet.of("bz2", "gz", "jar", "tgz", "war", "xz", "zip");
+
+@@ -91,6 +91,24 @@ class HttpConnector {
+   URLConnection connect(URL originalUrl, Function<URL, ImmutableMap<String, String>> requestHeaders)
+       throws IOException {
+
++    // Avoid PKIX error with MITM proxy
++    String mitm = System.getenv("BAZEL_SSL_NO_VERIFY");
++    //if(mitm != null && mitm.equalsIgnoreCase("yes")){
++      javax.net.ssl.TrustManager[] trustAllCerts = new javax.net.ssl.TrustManager[] { new javax.net.ssl.X509TrustManager() {
++        public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
++        public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
++        public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) { }
++      }};
++      javax.net.ssl.SSLContext sc;
++      try {
++        sc = javax.net.ssl.SSLContext.getInstance("SSL");
++        sc.init(null, trustAllCerts, new java.security.SecureRandom());
++        javax.net.ssl.HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
++      } catch (java.security.NoSuchAlgorithmException | java.security.KeyManagementException e) {
++        e.printStackTrace();
++      }
++    //}
++
+     if (Thread.interrupted()) {
+       throw new InterruptedIOException();
+     }
+diff --git a/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/RetryingInputStream.java b/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/RetryingInputStream.java
+index b691fdf..a22c882 100644
+--- a/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/RetryingInputStream.java
++++ b/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/RetryingInputStream.java
+@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
+ @ThreadCompatible
+ class RetryingInputStream extends InputStream {
+
+-  private static final int MAX_RESUMES = 3;
++  private static final int MAX_RESUMES = 0;
+
+   /** Lambda for establishing a connection. */
+   interface Reconnector {
+diff --git a/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnectorMultiplexer.java b/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnectorMultiplexer.java
+index e8213e4..d36b617 100644
+--- a/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnectorMultiplexer.java
++++ b/src/main/java/com/google/devtools/build/lib/bazel/repository/downloader/HttpConnectorMultiplexer.java
+@@ -64,7 +64,7 @@ final class HttpConnectorMultiplexer {
+
+   private static final Logger logger = Logger.getLogger(HttpConnectorMultiplexer.class.getName());
+
+-  private static final int MAX_THREADS_PER_CONNECT = 2;
++  private static final int MAX_THREADS_PER_CONNECT = 1;
+   private static final long FAILOVER_DELAY_MS = 2000;
+   private static final ImmutableMap<String, String> REQUEST_HEADERS =
+       ImmutableMap.of(
